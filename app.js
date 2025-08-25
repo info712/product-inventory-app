@@ -728,4 +728,3 @@ if (window.firebaseServices) {
     const root = ReactDOM.createRoot(container);
     root.render(<App />);
 }
-
