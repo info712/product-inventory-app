@@ -505,7 +505,7 @@ const ProductList = ({ products, isLoading, onEdit, onDelete, onDuplicate }) => 
 
 function App() {
     const [fbServices, setFbServices] = useState(null);
-    const [userId, setUserId] = useState(null);
+    const [user, setUser] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [products, setProducts] = useState([]);
     const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -527,23 +527,22 @@ function App() {
 
     useEffect(() => {
         if (window.firebaseServices) {
-            const { auth, onAuthStateChanged, signInAnonymously } = window.firebaseServices;
+            const { auth, onAuthStateChanged } = window.firebaseServices;
             setFbServices(window.firebaseServices);
             const unsubscribe = onAuthStateChanged(auth, (user) => {
-                if (user) setUserId(user.uid);
-                else signInAnonymously(auth).catch(err => console.error("Sign-in failed", err));
+                setUser(user);
                 setIsAuthReady(true);
             });
             return () => unsubscribe();
-        } else { setIsAuthReady(true); }
+        }
     }, []);
 
     useEffect(() => {
-        if (fbServices && userId) {
+        if (fbServices && user) {
             const { db, collection, onSnapshot, addDoc } = fbServices;
             
             const setupCollection = (collName, setter, defaultItems) => {
-                const collRef = collection(db, `/artifacts/${appId}/users/${userId}/${collName}`);
+                const collRef = collection(db, `/artifacts/${appId}/users/${user.uid}/${collName}`);
                 return onSnapshot(collRef, (snapshot) => {
                     if (snapshot.empty && defaultItems.length > 0) {
                         defaultItems.forEach(item => addDoc(collRef, { name: item }));
@@ -558,7 +557,7 @@ function App() {
             const unsubBrands = setupCollection('brands', setBrands, ['Generic', 'Scotts', 'DeWalt', 'Belgard', 'Kichler']);
             const unsubSuppliers = setupCollection('suppliers', setSuppliers, ['Local Nursery', 'Big Box Store', 'Online Retailer', 'Specialty Supplier']);
             
-            const unsubProducts = onSnapshot(collection(db, `/artifacts/${appId}/users/${userId}/products`), (snapshot) => {
+            const unsubProducts = onSnapshot(collection(db, `/artifacts/${appId}/users/${user.uid}/products`), (snapshot) => {
                 const productsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setProducts(productsData);
                 setIsLoadingProducts(false);
@@ -571,7 +570,7 @@ function App() {
                 unsubProducts();
             };
         }
-    }, [fbServices, userId]);
+    }, [fbServices, user]);
 
     const filteredProducts = useMemo(() => {
         return products.filter(product => {
@@ -585,7 +584,7 @@ function App() {
     const handleAddItem = async (name, type) => {
         const { db, collection, addDoc } = window.firebaseServices;
         const collectionName = type === 'category' ? 'categories' : (type === 'supplier' ? 'suppliers' : `${type}s`);
-        const collRef = collection(db, `/artifacts/${appId}/users/${userId}/${collectionName}`);
+        const collRef = collection(db, `/artifacts/${appId}/users/${user.uid}/${collectionName}`);
         await addDoc(collRef, { name });
     };
 
@@ -606,7 +605,7 @@ function App() {
             message: `Are you sure you want to delete "${item.name}"? This cannot be undone.`,
             onConfirm: async () => {
                 const { db, doc, deleteDoc } = window.firebaseServices;
-                const docRef = doc(db, `/artifacts/${appId}/users/${userId}/${collectionName}`, item.id);
+                const docRef = doc(db, `/artifacts/${appId}/users/${user.uid}/${collectionName}`, item.id);
                 await deleteDoc(docRef);
                 
                 if (type === 'category' && categoryFilter === item.name) setCategoryFilter('All Categories');
@@ -625,7 +624,7 @@ function App() {
             message: 'Are you sure you want to delete this product?',
             onConfirm: async () => {
                 const { db, doc, deleteDoc } = window.firebaseServices;
-                const docRef = doc(db, `/artifacts/${appId}/users/${userId}/products`, productId);
+                const docRef = doc(db, `/artifacts/${appId}/users/${user.uid}/products`, productId);
                 await deleteDoc(docRef);
                 setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
             }
@@ -634,7 +633,7 @@ function App() {
     
     const handleUpdateProduct = async (updatedProductData) => {
         const { db, doc, updateDoc } = window.firebaseServices;
-        const docRef = doc(db, `/artifacts/${appId}/users/${userId}/products`, updatedProductData.id);
+        const docRef = doc(db, `/artifacts/${appId}/users/${user.uid}/products`, updatedProductData.id);
         await updateDoc(docRef, updatedProductData);
         setEditingProduct(null);
     };
@@ -644,7 +643,13 @@ function App() {
         setIsAddModalOpen(true);
     };
 
-    if (!window.firebaseServices) return null;
+    if (!isAuthReady) {
+        return <div className="text-center p-10">Loading...</div>;
+    }
+    
+    if (!user) {
+        return <LoginScreen />;
+    }
 
     return (
         <div className="bg-white min-h-screen w-full font-sans text-[#1e3228] p-4 sm:p-6 lg-p-8">
@@ -673,7 +678,7 @@ function App() {
                         </button>
                         <ProductForm 
                             db={fbServices?.db} 
-                            userId={userId} 
+                            userId={user.uid} 
                             collection={fbServices?.collection} 
                             addDoc={fbServices?.addDoc}
                             categories={categories} 
@@ -694,8 +699,11 @@ function App() {
             {toastMessage && <div className="fixed top-5 right-5 bg-red-600 text-white py-2 px-4 rounded-lg shadow-lg z-50">{toastMessage}</div>}
             
             <div className="max-w-7xl mx-auto">
-                <div className="text-center text-xs text-zinc-500 mb-4">
-                    User ID: <span className="font-semibold text-zinc-700">{userId || 'Connecting...'}</span>
+                <div className="flex justify-between items-center mb-4">
+                    <div className="text-xs text-zinc-500">
+                        Logged in as: <span className="font-semibold text-zinc-700">{user.email}</span>
+                    </div>
+                    <button onClick={() => fbServices.signOut(fbServices.auth)} className="text-sm font-semibold text-[#598037] hover:underline">Sign Out</button>
                 </div>
                 <div className="bg-gray-50 p-6 rounded-xl">
                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
@@ -722,6 +730,49 @@ function App() {
         </div>
     );
 }
+
+const LoginScreen = () => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [isSignUp, setIsSignUp] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        setError('');
+        const { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword } = window.firebaseServices;
+        if (isSignUp) {
+            createUserWithEmailAndPassword(auth, email, password)
+                .catch(err => setError(err.message));
+        } else {
+            signInWithEmailAndPassword(auth, email, password)
+                .catch(err => setError(err.message));
+        }
+    };
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-lg">
+                <h2 className="text-2xl font-bold text-center text-[#1e3228] mb-6">{isSignUp ? 'Create an Account' : 'Sign In'}</h2>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <InputField label="Email Address" id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={true} />
+                    <InputField label="Password" id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required={true} />
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+                    <div>
+                        <button type="submit" style={{ backgroundColor: '#598037' }} className="w-full text-white font-bold py-2 px-4 rounded-lg hover:bg-[#4a6b2c] transition-all">
+                            {isSignUp ? 'Sign Up' : 'Sign In'}
+                        </button>
+                    </div>
+                </form>
+                <div className="mt-4 text-center">
+                    <button onClick={() => setIsSignUp(!isSignUp)} className="text-sm font-medium text-[#598037] hover:underline">
+                        {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 if (window.firebaseServices) {
     const container = document.getElementById('root');
