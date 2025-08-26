@@ -186,9 +186,9 @@ const validateProduct = (formData, allProducts, isEditing = false) => {
     });
     if(isDuplicateName) errors.name = "This name already exists in this category.";
 
-    if (formData.sku) {
+    if (formData.sku && formData.sku.trim()) {
         const isDuplicateSku = allProducts.some(p => {
-            if (p.sku.toLowerCase() === formData.sku.toLowerCase() && p.category === formData.category) {
+            if (p.sku && p.sku.toLowerCase() === formData.sku.toLowerCase() && p.category === formData.category) {
                 return isEditing ? p.id !== formData.id : true;
             }
             return false;
