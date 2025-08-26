@@ -170,6 +170,32 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     );
 };
 
+const validateProduct = (formData, allProducts, isEditing = false) => {
+    const errors = {};
+    if (!formData.name.trim()) errors.name = "Name is required.";
+    if (!formData.description.trim()) errors.description = "Description is required.";
+    if (!formData.costPrice || parseFloat(formData.costPrice) <= 0) {
+        errors.costPrice = "A valid cost price is required.";
+    }
+
+    if (formData.sku) {
+        const isDuplicate = allProducts.some(p => {
+            if (p.sku === formData.sku && p.category === formData.category) {
+                if (isEditing) {
+                    return p.id !== formData.id;
+                }
+                return true;
+            }
+            return false;
+        });
+
+        if (isDuplicate) {
+            errors.sku = "This SKU already exists in this category.";
+        }
+    }
+    return errors;
+};
+
 const EditProductModal = ({ product, isOpen, onClose, onSave, categories, brands, suppliers, allProducts }) => {
     const [formData, setFormData] = useState(product);
     const [formErrors, setFormErrors] = useState({});
@@ -195,21 +221,8 @@ const EditProductModal = ({ product, isOpen, onClose, onSave, categories, brands
         }
     };
 
-    const validateForm = () => {
-        const errors = {};
-        if (!formData.name.trim()) errors.name = "Name is required.";
-        if (!formData.description.trim()) errors.description = "Description is required.";
-        if (!formData.costPrice || parseFloat(formData.costPrice) <= 0) {
-            errors.costPrice = "A valid cost price is required.";
-        }
-        if (formData.sku && allProducts.some(p => p.sku === formData.sku && p.category === formData.category && p.id !== formData.id)) {
-            errors.sku = "This SKU already exists in this category.";
-        }
-        return errors;
-    };
-
     const handleSave = () => {
-        const errors = validateForm();
+        const errors = validateProduct(formData, allProducts, true);
         setFormErrors(errors);
         if (Object.keys(errors).length === 0) {
             onSave(formData);
@@ -332,22 +345,9 @@ const ProductForm = ({ db, userId, collection, addDoc, categories, onAddItem, br
         handleCloseModal();
     };
 
-    const validateForm = () => {
-        const errors = {};
-        if (!formData.name.trim()) errors.name = "Name is required.";
-        if (!formData.description.trim()) errors.description = "Description is required.";
-        if (!formData.costPrice || parseFloat(formData.costPrice) <= 0) {
-            errors.costPrice = "A valid cost price is required.";
-        }
-        if (formData.sku && allProducts.some(p => p.sku === formData.sku && p.category === formData.category)) {
-            errors.sku = "This SKU already exists in this category.";
-        }
-        return errors;
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const errors = validateForm();
+        const errors = validateProduct(formData, allProducts, false);
         setFormErrors(errors);
 
         if (Object.keys(errors).length > 0) {
@@ -639,7 +639,7 @@ function App() {
     };
 
     const handleDuplicateProduct = (product) => {
-        setProductToDuplicate({ ...product, name: `${product.name} (Copy)`, sku: product.sku });
+        setProductToDuplicate({ ...product, name: `${product.name} (Copy)`, sku: '' });
         setIsAddModalOpen(true);
     };
 
@@ -779,4 +779,5 @@ if (window.firebaseServices) {
     const root = ReactDOM.createRoot(container);
     root.render(<App />);
 }
+
 
