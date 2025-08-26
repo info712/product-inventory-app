@@ -178,18 +178,23 @@ const validateProduct = (formData, allProducts, isEditing = false) => {
         errors.costPrice = "A valid cost price is required.";
     }
 
+    const isDuplicateName = allProducts.some(p => {
+        if (p.name.toLowerCase() === formData.name.toLowerCase() && p.category === formData.category) {
+            return isEditing ? p.id !== formData.id : true;
+        }
+        return false;
+    });
+    if(isDuplicateName) errors.name = "This name already exists in this category.";
+
     if (formData.sku) {
-        const isDuplicate = allProducts.some(p => {
-            if (p.sku === formData.sku && p.category === formData.category) {
-                if (isEditing) {
-                    return p.id !== formData.id;
-                }
-                return true;
+        const isDuplicateSku = allProducts.some(p => {
+            if (p.sku.toLowerCase() === formData.sku.toLowerCase() && p.category === formData.category) {
+                return isEditing ? p.id !== formData.id : true;
             }
             return false;
         });
 
-        if (isDuplicate) {
+        if (isDuplicateSku) {
             errors.sku = "This SKU already exists in this category.";
         }
     }
